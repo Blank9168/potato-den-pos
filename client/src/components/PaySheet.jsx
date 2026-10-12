@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
-import { C, peso } from "../utils.js";
+import { C, lineName, peso } from "../utils.js";
 
 const BILLS = [50, 100, 200, 500, 1000];
 
@@ -19,7 +19,7 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
           <div className="done">
             <span className="lbl">Order number</span>
             <span className="no">#{done.no}</span>
-            <span>{done.items.map((l) => `${l.qty}× ${l.name}`).join(", ")}</span>
+            <span>{done.items.map((l) => `${l.qty}× ${lineName(l)}`).join(", ")}</span>
           </div>
           {done.discountPct > 0 && <div className="disc"><span>Discount {done.discountPct}%</span><span>−{peso(C(done.discount))}</span></div>}
           <div className="total"><span>{done.pay === "gcash" ? "GCash" : "Cash"}</span><span>{peso(C(done.total))}</span></div>
@@ -42,7 +42,7 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
     setBusy(true);
     try {
       const order = await api.createOrder({
-        items: lines.map((l) => ({ id: l.id, qty: l.qty })),
+        items: lines.map((l) => ({ id: l.id, flavor: l.flavor, qty: l.qty })),
         pay, tendered: pay === "cash" ? tendered : "", ref, discountPct,
       });
       setDone(order);
@@ -65,12 +65,12 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
         {lines.length === 0 && <div className="empty">This order is empty. Go back and tap some items.</div>}
         <div className="lines">
           {lines.map((l) => (
-            <div className="ln" key={l.id}>
-              <div className="n">{l.name}<small>{peso(C(l.price))} each</small></div>
+            <div className="ln" key={l.key}>
+              <div className="n">{lineName(l)}<small>{peso(C(l.price))} each</small></div>
               <div className="step">
-                <button aria-label="Remove one" onClick={() => onQty(l.id, -1)}>−</button>
+                <button aria-label="Remove one" onClick={() => onQty(l.key, -1)}>−</button>
                 <span>{l.qty}</span>
-                <button aria-label="Add one" onClick={() => onQty(l.id, 1)}>+</button>
+                <button aria-label="Add one" onClick={() => onQty(l.key, 1)}>+</button>
               </div>
               <div className="t">{peso(C(l.price) * l.qty)}</div>
             </div>

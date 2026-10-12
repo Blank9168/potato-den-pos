@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { C, peso, timeOf } from "../utils.js";
+import { C, lineName, peso, timeOf } from "../utils.js";
 
 // An order is waiting if it was paid, not voided, and not yet served.
 // Orders recorded before the queue existed have no status and count as served.
@@ -90,7 +90,7 @@ export default function QueueView({ loaded, orders, me, onToast }) {
               </div>
               <ul className="titems">
                 {o.items.map((l) => (
-                  <li key={l.id}><b>{l.qty}×</b> {l.name}</li>
+                  <li key={l.id + (l.flavor || "")}><b>{l.qty}×</b> {l.name}{l.flavor && <span className="flv"> · {l.flavor}</span>}</li>
                 ))}
               </ul>
               <div className="hint sm">{timeOf(o.ts)}{o.cashier ? ` · ${o.cashier}` : ""}</div>
@@ -116,7 +116,7 @@ export default function QueueView({ loaded, orders, me, onToast }) {
                 {served.map((o) => (
                   <tr key={o.id}>
                     <td><b>#{o.no}</b></td>
-                    <td className="items">{o.items.map((l) => `${l.qty}× ${l.name}`).join(", ")}</td>
+                    <td className="items">{o.items.map((l) => `${l.qty}× ${lineName(l)}`).join(", ")}</td>
                     <td>{timeOf(o.doneAt)}{o.doneBy && <><br /><small>{o.doneBy}</small></>}</td>
                     <td><button className="btn sm line" disabled={busyId === o.id} onClick={() => setStatus(o, "pending")}>Undo</button></td>
                   </tr>

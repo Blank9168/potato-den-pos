@@ -5,6 +5,7 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   const [name, setName] = useState(item?.name ?? "");
   const [price, setPrice] = useState(item ? String(item.price) : "");
   const [category, setCategory] = useState(item?.category ?? "");
+  const [flavors, setFlavors] = useState((item?.flavors || []).join(", "));
   const [stock, setStock] = useState(item?.stock == null ? "" : String(item.stock));
   const [active, setActive] = useState(item ? item.active !== false : true);
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,7 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   };
 
   const save = () => {
-    const body = { name, price, category, active, stock: stock.trim() === "" ? null : stock };
+    const body = { name, price, category, flavors, active, stock: stock.trim() === "" ? null : stock };
     run(() => (item ? api.updateItem(item.id, body) : api.createItem(body)), "Saved");
   };
 
@@ -55,6 +56,11 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
           <input type="text" id="fCat" maxLength={20} list="catList" placeholder="Fries" value={category} onChange={(e) => setCategory(e.target.value)} />
         </label>
         <datalist id="catList">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+        <label className="field" htmlFor="fFlavors">
+          Flavors (optional, separate with commas)
+          <input type="text" id="fFlavors" maxLength={400} placeholder="Cheese, BBQ, Sour Cream" value={flavors} onChange={(e) => setFlavors(e.target.value)} />
+        </label>
+        <div className="hint sm">If you list flavors, the cashier is asked to pick one each time this item is tapped. All flavors share the same price and stock.</div>
         <label className="field" htmlFor="fStock">
           Stock on hand (blank = don't track)
           <input type="number" id="fStock" inputMode="numeric" min="0" step="1" placeholder="Not tracked" value={stock} onChange={(e) => setStock(e.target.value)} />

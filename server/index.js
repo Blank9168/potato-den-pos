@@ -49,9 +49,18 @@ function readItem(body) {
     stock = Math.floor(Number(body.stock));
     if (!Number.isFinite(stock) || stock < 0) return { error: "Stock must be 0 or more." };
   }
+  // Flavors are optional: a list, or text separated by commas. Blank ones and repeats are dropped.
+  const rawFlavors = Array.isArray(body.flavors) ? body.flavors : String(body.flavors ?? "").split(",");
+  const flavors = [];
+  for (const raw of rawFlavors) {
+    const flavor = String(raw ?? "").trim().replace(/\s+/g, " ").slice(0, 30);
+    if (flavor && !flavors.some((f) => f.toLowerCase() === flavor.toLowerCase())) flavors.push(flavor);
+  }
+  if (flavors.length > 20) return { error: "Keep it to 20 flavors or fewer per item." };
   return {
     item: {
       name,
+      flavors,
       price: Math.round(price * 100) / 100,
       category: String(body.category ?? "").trim().slice(0, 20) || "Other",
       active: body.active !== false,
@@ -211,21 +220,32 @@ app.post("/api/orders", (req, res) => {
   if (!Array.isArray(body.items) || !body.items.length) return fail(res, 400, "The order is empty.");
 
   // Merge duplicate lines, and take names and prices from the server's menu, never from the client.
+  // An item with flavors needs one picked per line; each item + flavor pair is its own line. Stock is shared per item.
   const qtyById = new Map();
+  const lineByKey = new Map();
   for (const line of body.items) {
     const qty = Math.floor(Number(line?.qty));
     if (!Number.isFinite(qty) || qty < 1 || qty > 999) return fail(res, 400, "Check the quantities and try again.");
-    qtyById.set(line.id, (qtyById.get(line.id) || 0) + qty);
+    const item = db.menu.find((m) => m.id === line.id);
+    if (!item) return fail(res, 409, "An item in this order was removed from the menu. Start the order again.");
+    let flavor = "";
+    if (item.flavors?.length) {
+      flavor = String(line.flavor ?? "").trim();
+      if (!item.flavors.includes(flavor)) return fail(res, 409, `Pick a flavor for ${item.name}.`);
+    }
+    const key = `${item.id}|${flavor}`;
+    const merged = lineByKey.get(key) || { id: item.id, name: item.name, ...(flavor ? { flavor } : {}), price: item.price, qty: 0 };
+    merged.qty += qty;
+    lineByKey.set(key, merged);
+    qtyById.set(item.id, (qtyById.get(item.id) || 0) + qty);
   }
-  const lines = [];
   for (const [id, qty] of qtyById) {
     const item = db.menu.find((m) => m.id === id);
-    if (!item) return fail(res, 409, "An item in this order was removed from the menu. Start the order again.");
     if (item.stock != null && qty > item.stock) {
       return fail(res, 409, item.stock === 0 ? `${item.name} is sold out.` : `Only ${item.stock} left of ${item.name}.`);
     }
-    lines.push({ id, name: item.name, price: item.price, qty });
   }
+  const lines = [...lineByKey.values()];
 
   // Discount: a whole-order percentage in steps of 10 (0, 10, 20 ... 100). The server works out the amount.
   const discountPct = body.discountPct == null || body.discountPct === "" ? 0 : Number(body.discountPct);
@@ -300,10 +320,10 @@ app.get("/api/export", (req, res) => {
   const day = validDay(req.query.day);
   if (!day) return fail(res, 400, "Pick a valid day.");
   const q = (v) => { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
+  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Flavor", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
   for (const o of visibleOrders(req.user, day).sort((a, b) => a.ts - b.ts)) {
     for (const l of o.items) {
-      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
+      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.flavor || "", l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
         o.pay === "gcash" ? "GCash" : "Cash", o.ref, o.tendered, o.change, o.voided ? "Void" : "Paid", o.doneAt ? timeOf(o.doneAt) : ""]);
     }
   }

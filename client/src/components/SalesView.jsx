@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { C, niceDay, peso, timeOf } from "../utils.js";
+import { C, lineName, niceDay, peso, timeOf } from "../utils.js";
 import { isPending } from "./QueueView.jsx";
 
 function summarize(orders) {
@@ -13,9 +13,10 @@ function summarize(orders) {
     s.discounts += C(o.discount);
     if (o.pay === "gcash") s.gcash += t; else s.cash += t;
     for (const l of o.items) {
-      s.items[l.name] ??= { qty: 0, amt: 0 };
-      s.items[l.name].qty += l.qty;
-      s.items[l.name].amt += C(l.price) * l.qty;
+      const name = lineName(l); // each flavor gets its own row
+      s.items[name] ??= { qty: 0, amt: 0 };
+      s.items[name].qty += l.qty;
+      s.items[name].amt += C(l.price) * l.qty;
     }
   }
   return s;
@@ -117,7 +118,7 @@ export default function SalesView({ isAdmin, today, todayOrders, onToast }) {
                       <tr key={o.id} className={o.voided ? "voided" : ""}>
                         <td><b>#{o.no}</b></td>
                         <td>{timeOf(o.ts)}{o.cashier && <><br /><small>{o.cashier}</small></>}</td>
-                        <td className="items">{o.items.map((l) => `${l.qty}× ${l.name}`).join(", ")}</td>
+                        <td className="items">{o.items.map((l) => `${l.qty}× ${lineName(l)}`).join(", ")}</td>
                         <td className="num">{peso(C(o.total))}{o.discountPct > 0 && <><br /><small>−{o.discountPct}%</small></>}</td>
                         <td>
                           {isPending(o) && <><span className="pill wait">In queue</span> </>}

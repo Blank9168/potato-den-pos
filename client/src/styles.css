@@ -155,4 +155,8 @@ input[type=password]{background:var(--surface);border:1.5px solid var(--line);bo
 /* discount */
 .step .pct{min-width:48px}
 .step button[disabled]{opacity:.4;cursor:not-allowed}
+.tile .fl{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-top:2px}
+.flavors{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.flavors .btn{padding:18px 12px;font-size:1.05rem;background:var(--surface);border:1.5px solid var(--line);overflow-wrap:anywhere}
+.flv{font-weight:700}
 .disc{display:flex;justify-content:space-between;color:var(--muted);font-weight:600}

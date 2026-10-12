@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api.js";
-import { C, niceDay, peso } from "./utils.js";
+import { C, cartKey, niceDay, peso, splitKey } from "./utils.js";
 import SellView from "./components/SellView.jsx";
 import QueueView, { isPending } from "./components/QueueView.jsx";
 import SalesView from "./components/SalesView.jsx";
 import MenuView from "./components/MenuView.jsx";
 import PaySheet from "./components/PaySheet.jsx";
 import ItemSheet from "./components/ItemSheet.jsx";
+import FlavorSheet from "./components/FlavorSheet.jsx";
 import UsersView from "./components/UsersView.jsx";
 import AccountSheet from "./components/AccountSheet.jsx";
 
@@ -17,8 +18,8 @@ export default function Register({ user, onLogout, onSessionLost }) {
   const [tab, setTab] = useState("sell");
   const [data, setData] = useState({ loaded: false, today: "", menu: [], orders: [], queue: [] });
   const [online, setOnline] = useState(true);
-  const [cart, setCart] = useState({}); // item id -> quantity
-  const [sheet, setSheet] = useState(null); // { type: "pay" } | { type: "item", item }
+  const [cart, setCart] = useState({}); // cart key (item id, or "id|flavor") -> quantity
+  const [sheet, setSheet] = useState(null); // { type: "pay" } | { type: "item", item } | { type: "flavor", item }
   const [toast, setToast] = useState("");
 
   const refresh = useCallback(async () => {
@@ -50,26 +51,47 @@ export default function Register({ user, onLogout, onSessionLost }) {
   }, [toast]);
 
   // Cart lines always use the current menu, so a price edit or deleted item is reflected right away.
-  const lines = useMemo(
-    () => data.menu.filter((item) => cart[item.id] > 0).map((item) => ({ ...item, qty: cart[item.id] })),
-    [data.menu, cart]
-  );
+  // An entry is dropped if its flavor was removed from the item, or flavors were added to an item that had none.
+  const lines = useMemo(() => {
+    const out = [];
+    data.menu.forEach((item, pos) => {
+      const flavors = item.flavors || [];
+      for (const [key, qty] of Object.entries(cart)) {
+        const [id, flavor] = splitKey(key);
+        if (id !== item.id || !(qty > 0)) continue;
+        if (flavors.length ? !flavors.includes(flavor) : flavor) continue;
+        out.push({ ...item, key, flavor, qty, pos, fpos: flavors.indexOf(flavor) });
+      }
+    });
+    return out.sort((a, b) => a.pos - b.pos || a.fpos - b.fpos);
+  }, [data.menu, cart]);
+  const qtyById = {}; // per item, across flavors: for the badge on each tile and for stock checks
+  for (const l of lines) qtyById[l.id] = (qtyById[l.id] || 0) + l.qty;
   const total = lines.reduce((sum, l) => sum + C(l.price) * l.qty, 0);
   const count = lines.reduce((sum, l) => sum + l.qty, 0);
 
-  const changeQty = (id, delta) => {
+  const changeQty = (key, delta) => {
+    const [id] = splitKey(key);
     const item = data.menu.find((m) => m.id === id);
     if (!item) return;
-    let qty = (cart[id] || 0) + delta;
-    if (item.stock != null && qty > item.stock) {
+    let qty = (cart[key] || 0) + delta;
+    const others = (qtyById[id] || 0) - (lines.find((l) => l.key === key)?.qty || 0); // same item, other flavors
+    if (item.stock != null && others + qty > item.stock) {
       setToast(`Only ${item.stock} left of ${item.name}`);
-      qty = item.stock;
+      qty = item.stock - others;
     }
     setCart((prev) => {
       const next = { ...prev };
-      if (qty <= 0) delete next[id]; else next[id] = qty;
+      if (qty <= 0) delete next[key]; else next[key] = qty;
       return next;
     });
+  };
+
+  // Tapping a tile adds one, unless the item has flavors: then ask which one first.
+  const addItem = (id) => {
+    const item = data.menu.find((m) => m.id === id);
+    if (item?.flavors?.length) setSheet({ type: "flavor", item });
+    else changeQty(id, 1);
   };
 
   const closeSheet = () => setSheet(null);
@@ -100,7 +122,7 @@ export default function Register({ user, onLogout, onSessionLost }) {
           <div className="notice bad">Can't reach the POS server. Check the Wi-Fi and that the server is still running. Sales can't be recorded until it's back.</div>
         )}
 
-        {tab === "sell" && <SellView loaded={data.loaded} menu={data.menu} cart={cart} onAdd={(id) => changeQty(id, 1)} />}
+        {tab === "sell" && <SellView loaded={data.loaded} menu={data.menu} cart={qtyById} onAdd={addItem} />}
         {tab === "queue" && <QueueView loaded={data.loaded} orders={data.queue} me={user} onToast={setToast} />}
         {tab === "sales" && <SalesView isAdmin={isAdmin} today={data.today} todayOrders={data.loaded ? data.orders : null} onToast={setToast} />}
         {tab === "menu" && isAdmin && <MenuView loaded={data.loaded} menu={data.menu} onEdit={(item) => setSheet({ type: "item", item })} />}
@@ -122,6 +144,9 @@ export default function Register({ user, onLogout, onSessionLost }) {
 
       {sheet?.type === "pay" && (
         <PaySheet lines={lines} total={total} onQty={changeQty} onSold={() => setCart({})} onClose={closeSheet} onToast={setToast} />
+      )}
+      {sheet?.type === "flavor" && (
+        <FlavorSheet item={sheet.item} onPick={(flavor) => { changeQty(cartKey(sheet.item.id, flavor), 1); closeSheet(); }} onClose={closeSheet} />
       )}
       {sheet?.type === "item" && (
         <ItemSheet item={sheet.item} menu={data.menu} onClose={closeSheet} onToast={setToast} />
