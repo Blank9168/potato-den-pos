@@ -1,0 +1,24 @@
+{
+  "name": "potato-den-pos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Booth POS for Potato Den (Foundation Week): React client, Node.js + Express server.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mongodb": "^6.12.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
+  }
+}
