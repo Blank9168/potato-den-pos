@@ -90,7 +90,7 @@ export default function QueueView({ loaded, orders, me, onToast }) {
               </div>
               <ul className="titems">
                 {o.items.map((l) => (
-                  <li key={lineName(l)}><b>{l.qty}×</b> {l.name}{l.flavor && <span className="flv"> · {l.flavor}</span>}{l.addons?.length > 0 && <small className="adds">+ {addonNames(l)}</small>}</li>
+                  <li key={lineName(l)}><b>{l.qty}×</b> {l.name}{l.size && <span className="flv"> · {l.size}</span>}{l.flavor && <span className="flv"> · {l.flavor}</span>}{l.addons?.length > 0 && <small className="adds">+ {addonNames(l)}</small>}</li>
                 ))}
               </ul>
               <div className="hint sm">{timeOf(o.ts)}{o.cashier ? ` · ${o.cashier}` : ""}</div>

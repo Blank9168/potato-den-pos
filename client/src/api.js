@@ -37,6 +37,7 @@ export const api = {
   orders: (day) => request("GET", `/api/orders?day=${day}`),
   createOrder: (order) => request("POST", "/api/orders", order),
   setVoided: (id, voided) => request("PATCH", `/api/orders/${id}`, { voided }),
+  deleteOrder: (id) => request("DELETE", `/api/orders/${id}`),
   setStatus: (id, status) => request("PATCH", `/api/orders/${id}`, { status }),
   createItem: (item) => request("POST", "/api/menu", item),
   updateItem: (id, item) => request("PUT", `/api/menu/${id}`, item),

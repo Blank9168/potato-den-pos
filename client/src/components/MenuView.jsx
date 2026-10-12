@@ -1,4 +1,4 @@
-import { C, peso } from "../utils.js";
+import { C, peso, priceRange } from "../utils.js";
 
 export default function MenuView({ loaded, menu, onEdit }) {
   const sorted = [...menu].sort(
@@ -31,11 +31,12 @@ export default function MenuView({ loaded, menu, onEdit }) {
                     <b>{item.name}</b>
                     {item.active === false && <> <span className="pill">Hidden</span></>}
                     {item.sample && <> <span className="pill">Sample</span></>}
+                    {item.sizes?.length > 0 && <><br /><small className="hint sm">Sizes: {item.sizes.map((s) => `${s.name} ${peso(C(s.price))}`).join(", ")}</small></>}
                     {item.flavors?.length > 0 && <><br /><small className="hint sm">{item.flavors.join(", ")}</small></>}
                     {item.addons?.length > 0 && <><br /><small className="hint sm">Add-ons: {item.addons.map((a) => `${a.name} +${peso(C(a.price))}`).join(", ")}</small></>}
                   </td>
                   <td>{item.category || "Other"}</td>
-                  <td className="num">{peso(C(item.price))}</td>
+                  <td className="num">{(([lo, hi]) => (lo === hi ? peso(lo) : `${peso(lo)}–${peso(hi)}`))(priceRange(item))}</td>
                   <td className="num">{item.stock == null ? "Not tracked" : item.stock}</td>
                   <td><button className="btn sm line" onClick={() => onEdit(item)}>Edit</button></td>
                 </tr>

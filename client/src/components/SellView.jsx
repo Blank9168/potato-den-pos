@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { C, peso } from "../utils.js";
+import { peso, priceRange } from "../utils.js";
 
 export default function SellView({ loaded, menu, cart, onAdd }) {
   const [category, setCategory] = useState("All");
@@ -28,11 +28,15 @@ export default function SellView({ loaded, menu, cart, onAdd }) {
           return (
             <button key={item.id} className={"tile" + (qty ? " on" : "")} disabled={soldOut} onClick={() => onAdd(item.id)}>
               {qty > 0 && <span className="q">{qty}</span>}
-              <span className="nm">{item.name}{(item.flavors?.length > 0 || item.addons?.length > 0) && (
-                <small className="fl">{[item.flavors?.length > 0 && `${item.flavors.length} flavors`, item.addons?.length > 0 && "add-ons"].filter(Boolean).join(" · ")}</small>
+              <span className="nm">{item.name}{(item.sizes?.length > 0 || item.flavors?.length > 0 || item.addons?.length > 0) && (
+                <small className="fl">{[
+                  item.sizes?.length > 0 && `${item.sizes.length} sizes`,
+                  item.flavors?.length > 0 && `${item.flavors.length} flavors`,
+                  item.addons?.length > 0 && "add-ons",
+                ].filter(Boolean).join(" · ")}</small>
               )}</span>
               <span>
-                <span className="pr">{peso(C(item.price))}</span>
+                <span className="pr">{(([lo, hi]) => (lo === hi ? peso(lo) : `from ${peso(lo)}`))(priceRange(item))}</span>
                 <br />
                 {item.stock != null && (
                   <span className={"st" + (item.stock <= 5 ? " low" : "")}>{soldOut ? "Sold out" : `${item.stock} left`}</span>

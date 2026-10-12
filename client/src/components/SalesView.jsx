@@ -31,6 +31,7 @@ export default function SalesView({ isAdmin, today, todayOrders, onToast }) {
   const [picked, setPicked] = useState(""); // "" follows today
   const [past, setPast] = useState(null); // orders of a picked earlier day; null while loading
   const [armed, setArmed] = useState(null); // order id waiting for a second tap to void
+  const [armedDelete, setArmedDelete] = useState(null); // order id waiting for a second tap to delete (admin only)
 
   const day = picked || today;
   const isToday = day === today;
@@ -53,6 +54,24 @@ export default function SalesView({ isAdmin, today, todayOrders, onToast }) {
   }, [armed]);
 
   const orders = isToday ? todayOrders : past;
+
+  useEffect(() => {
+    if (!armedDelete) return;
+    const timer = setTimeout(() => setArmedDelete(null), 3000);
+    return () => clearTimeout(timer);
+  }, [armedDelete]);
+
+  // Deleting removes the order from the records completely (unlike Void, which keeps it crossed out).
+  const removeOrder = async (order) => {
+    if (armedDelete !== order.id) return setArmedDelete(order.id);
+    setArmedDelete(null);
+    try {
+      await api.deleteOrder(order.id);
+      onToast(`Order #${order.no} deleted`);
+    } catch (err) {
+      onToast(err.message);
+    }
+  };
 
   const toggleVoid = async (order) => {
     if (!order.voided && armed !== order.id) return setArmed(order.id);
@@ -135,6 +154,11 @@ export default function SalesView({ isAdmin, today, todayOrders, onToast }) {
                           <button className={"btn sm line" + (o.voided ? "" : " danger")} onClick={() => toggleVoid(o)}>
                             {o.voided ? "Restore" : armed === o.id ? "Tap again" : "Void"}
                           </button>
+                          {isAdmin && (
+                            <button className="btn sm line danger del" onClick={() => removeOrder(o)}>
+                              {armedDelete === o.id ? "Tap again" : "Delete"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

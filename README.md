@@ -76,8 +76,8 @@ Then open http://localhost:5173.
 
 - **Sell**: tap items, press Charge, choose Cash (with change calculator) or GCash (optional reference number). A recorded sale shows the order number and the change to give. Order numbers restart at 1 each day.
 - **Queue**: every recorded sale waits here, oldest first, with its order number, items and waiting time. Tap **Served** when the food is handed over, or **Cancel order** (two taps) if the customer backs out: that voids the sale, puts the stock back and reminds you how much to refund. A cancelled order can be brought back with Restore in the Sales tab. Recently served orders stay listed below with an Undo. The tab shows how many orders are waiting, and it updates live on every device. Cashiers see only their own orders here; an admin login sees the whole booth's queue.
-- **Sales**: totals for any day split by cash and GCash, sales per item, the order list with Void/Restore, and Export CSV.
-- **Menu**: add, edit, hide or delete items. Stock is optional per item; it goes down with each sale and comes back when an order is voided.
+- **Sales**: totals for any day split by cash and GCash, sales per item, the order list with Void/Restore, and Export CSV. Admins also get **Delete** (two taps), which removes an order completely, for test sales or duplicates; its stock goes back unless it was already voided. Use Void for real sales that were refunded, so they stay on record.
+- **Menu**: add, edit, hide or delete items. Stock is optional per item; it goes down with each sale and comes back when an order is voided. Each item can also have **sizes** (each with its own price, e.g. Small ₱40 / Medium ₱55 / Large ₱70), **flavors** (same price) and priced **add-ons**; the cashier picks them when the item is tapped. Sizes, flavors and add-ons share the item's stock.
 
 The first start creates nine sample items with made-up prices. Replace them in the Menu tab.
 

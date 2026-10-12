@@ -41,9 +41,22 @@ function commit() {
 
 function readItem(body) {
   const name = String(body.name ?? "").trim().slice(0, 40);
-  const price = Number(body.price);
   if (!name) return { error: "Give the item a name." };
-  if (body.price === "" || body.price == null || !Number.isFinite(price) || price < 0) return { error: "Enter a price." };
+  // Sizes are optional, each with its own full price, e.g. { name: "Large", price: 60 }.
+  const sizes = [];
+  for (const raw of Array.isArray(body.sizes) ? body.sizes : []) {
+    const sizeName = String(raw?.name ?? "").trim().replace(/\s+/g, " ").slice(0, 20);
+    if (!sizeName) continue;
+    const sizePrice = Number(raw.price);
+    if (raw.price === "" || raw.price == null || !Number.isFinite(sizePrice) || sizePrice < 0) return { error: `Enter a price for the size "${sizeName}".` };
+    if (sizes.some((s) => s.name.toLowerCase() === sizeName.toLowerCase())) continue;
+    sizes.push({ name: sizeName, price: Math.round(sizePrice * 100) / 100 });
+  }
+  if (sizes.length > 6) return { error: "Keep it to 6 sizes or fewer per item." };
+  // With sizes, the item price may be left blank: it then takes the first size's price (used for display only).
+  const blankPrice = body.price === "" || body.price == null;
+  const price = blankPrice && sizes.length ? sizes[0].price : Number(body.price);
+  if ((blankPrice && !sizes.length) || !Number.isFinite(price) || price < 0) return { error: "Enter a price." };
   let stock = null;
   if (body.stock !== null && body.stock !== undefined && body.stock !== "") {
     stock = Math.floor(Number(body.stock));
@@ -71,6 +84,7 @@ function readItem(body) {
   return {
     item: {
       name,
+      sizes,
       flavors,
       addons,
       price: Math.round(price * 100) / 100,
@@ -240,6 +254,13 @@ app.post("/api/orders", (req, res) => {
     if (!Number.isFinite(qty) || qty < 1 || qty > 999) return fail(res, 400, "Check the quantities and try again.");
     const item = db.menu.find((m) => m.id === line.id);
     if (!item) return fail(res, 409, "An item in this order was removed from the menu. Start the order again.");
+    // Size: required when the item has sizes; its price replaces the item price.
+    let size = null;
+    if (item.sizes?.length) {
+      size = item.sizes.find((s) => s.name === String(line.size ?? "").trim());
+      if (!size) return fail(res, 409, `Pick a size for ${item.name}.`);
+    }
+    const baseC = cents(size ? size.price : item.price);
     let flavor = "";
     if (item.flavors?.length) {
       flavor = String(line.flavor ?? "").trim();
@@ -252,11 +273,11 @@ app.post("/api/orders", (req, res) => {
       return fail(res, 409, `An add-on for ${item.name} is no longer on the menu. Start the order again.`);
     }
     const addons = offered.filter((x) => wanted.includes(x.name)).map((x) => ({ name: x.name, price: x.price }));
-    const unitC = cents(item.price) + addons.reduce((sum, a) => sum + cents(a.price), 0);
-    const key = JSON.stringify([item.id, flavor, addons.map((a) => a.name)]);
+    const unitC = baseC + addons.reduce((sum, a) => sum + cents(a.price), 0);
+    const key = JSON.stringify([item.id, flavor, addons.map((a) => a.name), size?.name || ""]);
     const merged = lineByKey.get(key) || {
-      id: item.id, name: item.name, ...(flavor ? { flavor } : {}),
-      ...(addons.length ? { addons, basePrice: item.price } : {}),
+      id: item.id, name: item.name, ...(size ? { size: size.name } : {}), ...(flavor ? { flavor } : {}),
+      ...(addons.length ? { addons, basePrice: baseC / 100 } : {}),
       price: unitC / 100, qty: 0, // price = one unit including its add-ons
     };
     merged.qty += qty;
@@ -340,14 +361,31 @@ app.patch("/api/orders/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin only: remove an order for good (e.g. a test sale or a duplicate).
+// Stock comes back unless the order was already voided (voiding returned it then).
+// The day's order counter is not rewound, so later order numbers never repeat.
+app.delete("/api/orders/:id", auth.requireAdmin, (req, res) => {
+  const order = db.orders.find((o) => o.id === req.params.id);
+  if (!order) return res.json({ ok: true });
+  if (!order.voided) {
+    for (const l of order.items) {
+      const item = db.menu.find((m) => m.id === l.id);
+      if (item && item.stock != null) item.stock += l.qty;
+    }
+  }
+  db.orders = db.orders.filter((o) => o.id !== order.id);
+  commit();
+  res.json({ ok: true });
+});
+
 app.get("/api/export", (req, res) => {
   const day = validDay(req.query.day);
   if (!day) return fail(res, 400, "Pick a valid day.");
   const q = (v) => { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Flavor", "Add-ons", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
+  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Size", "Flavor", "Add-ons", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
   for (const o of visibleOrders(req.user, day).sort((a, b) => a.ts - b.ts)) {
     for (const l of o.items) {
-      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.flavor || "", (l.addons || []).map((a) => a.name).join("; "), l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
+      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.size || "", l.flavor || "", (l.addons || []).map((a) => a.name).join("; "), l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
         o.pay === "gcash" ? "GCash" : "Cash", o.ref, o.tendered, o.change, o.voided ? "Void" : "Paid", o.doneAt ? timeOf(o.doneAt) : ""]);
     }
   }

@@ -51,22 +51,26 @@ export default function Register({ user, onLogout, onSessionLost }) {
   }, [toast]);
 
   // Cart lines always use the current menu, so a price edit or deleted item is reflected right away.
-  // An entry is dropped if its flavor or an add-on was removed from the item, or flavors were added to an item that had none.
+  // An entry is dropped if its size, flavor or an add-on was removed from the item, or sizes/flavors were added to an item that had none.
   const lines = useMemo(() => {
     const out = [];
     data.menu.forEach((item, pos) => {
       const flavors = item.flavors || [];
+      const sizes = item.sizes || [];
       for (const [key, qty] of Object.entries(cart)) {
-        const [id, flavor, names] = splitKey(key);
+        const [id, flavor, names, sizeName] = splitKey(key);
         if (id !== item.id || !(qty > 0)) continue;
         if (flavors.length ? !flavors.includes(flavor) : flavor) continue;
+        const size = sizes.find((s) => s.name === sizeName);
+        if (sizes.length ? !size : sizeName) continue;
         const addons = (item.addons || []).filter((a) => names.includes(a.name));
         if (addons.length !== names.length) continue;
-        const price = (C(item.price) + addons.reduce((sum, a) => sum + C(a.price), 0)) / 100; // one unit with its add-ons
-        out.push({ ...item, key, flavor, addons, price, qty, pos, fpos: flavors.indexOf(flavor) });
+        const base = C(size ? size.price : item.price);
+        const price = (base + addons.reduce((sum, a) => sum + C(a.price), 0)) / 100; // one unit with its add-ons
+        out.push({ ...item, key, size: sizeName, flavor, addons, price, qty, pos, spos: sizes.indexOf(size), fpos: flavors.indexOf(flavor) });
       }
     });
-    return out.sort((a, b) => a.pos - b.pos || a.fpos - b.fpos);
+    return out.sort((a, b) => a.pos - b.pos || a.spos - b.spos || a.fpos - b.fpos);
   }, [data.menu, cart]);
   const qtyById = {}; // per item, across flavors: for the badge on each tile and for stock checks
   for (const l of lines) qtyById[l.id] = (qtyById[l.id] || 0) + l.qty;
@@ -90,10 +94,10 @@ export default function Register({ user, onLogout, onSessionLost }) {
     });
   };
 
-  // Tapping a tile adds one, unless the item has flavors or add-ons: then ask for those first.
+  // Tapping a tile adds one, unless the item has sizes, flavors or add-ons: then ask for those first.
   const addItem = (id) => {
     const item = data.menu.find((m) => m.id === id);
-    if (item?.flavors?.length || item?.addons?.length) setSheet({ type: "options", item });
+    if (item?.sizes?.length || item?.flavors?.length || item?.addons?.length) setSheet({ type: "options", item });
     else changeQty(cartKey(id), 1);
   };
 
@@ -149,7 +153,7 @@ export default function Register({ user, onLogout, onSessionLost }) {
         <PaySheet lines={lines} total={total} onQty={changeQty} onSold={() => setCart({})} onClose={closeSheet} onToast={setToast} />
       )}
       {sheet?.type === "options" && (
-        <OptionsSheet item={sheet.item} onAdd={(flavor, addons) => { changeQty(cartKey(sheet.item.id, flavor, addons), 1); closeSheet(); }} onClose={closeSheet} />
+        <OptionsSheet item={sheet.item} onAdd={(flavor, addons, size) => { changeQty(cartKey(sheet.item.id, flavor, addons, size), 1); closeSheet(); }} onClose={closeSheet} />
       )}
       {sheet?.type === "item" && (
         <ItemSheet item={sheet.item} menu={data.menu} onClose={closeSheet} onToast={setToast} />

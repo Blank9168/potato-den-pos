@@ -42,7 +42,7 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
     setBusy(true);
     try {
       const order = await api.createOrder({
-        items: lines.map((l) => ({ id: l.id, flavor: l.flavor, addons: l.addons.map((a) => a.name), qty: l.qty })),
+        items: lines.map((l) => ({ id: l.id, size: l.size, flavor: l.flavor, addons: l.addons.map((a) => a.name), qty: l.qty })),
         pay, tendered: pay === "cash" ? tendered : "", ref, discountPct,
       });
       setDone(order);

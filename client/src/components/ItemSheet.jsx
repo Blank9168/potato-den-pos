@@ -6,6 +6,7 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   const [price, setPrice] = useState(item ? String(item.price) : "");
   const [category, setCategory] = useState(item?.category ?? "");
   const [flavors, setFlavors] = useState((item?.flavors || []).join(", "));
+  const [sizes, setSizes] = useState((item?.sizes || []).map((s) => ({ name: s.name, price: String(s.price) })));
   const [addons, setAddons] = useState((item?.addons || []).map((a) => ({ name: a.name, price: String(a.price) })));
   const [stock, setStock] = useState(item?.stock == null ? "" : String(item.stock));
   const [active, setActive] = useState(item ? item.active !== false : true);
@@ -28,10 +29,11 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   };
 
   const save = () => {
-    const body = { name, price, category, flavors, addons: addons.filter((a) => a.name.trim()), active, stock: stock.trim() === "" ? null : stock };
+    const body = { name, price, category, sizes: sizes.filter((s) => s.name.trim()), flavors, addons: addons.filter((a) => a.name.trim()), active, stock: stock.trim() === "" ? null : stock };
     run(() => (item ? api.updateItem(item.id, body) : api.createItem(body)), "Saved");
   };
 
+  const setSize = (i, patch) => setSizes((list) => list.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   const setAddon = (i, patch) => setAddons((list) => list.map((a, j) => (j === i ? { ...a, ...patch } : a)));
 
   const remove = () => {
@@ -51,9 +53,23 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
           <input type="text" id="fName" maxLength={40} placeholder="Cheese Fries" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="field" htmlFor="fPrice">
-          Price (₱)
+          Price (₱){sizes.some((s) => s.name.trim()) && " (optional when you add sizes)"}
           <input type="number" id="fPrice" inputMode="decimal" min="0" step="any" placeholder="50" value={price} onChange={(e) => setPrice(e.target.value)} />
         </label>
+        <div className="field">
+          Sizes (optional, each with its own price)
+          {sizes.map((s, i) => (
+            <div className="addon" key={i}>
+              <input type="text" aria-label="Size name" maxLength={20} placeholder={i === 0 ? "Regular" : "Large"} value={s.name} onChange={(e) => setSize(i, { name: e.target.value })} />
+              <input type="number" aria-label="Size price" inputMode="decimal" min="0" step="any" placeholder={i === 0 ? "₱40" : "₱60"} value={s.price} onChange={(e) => setSize(i, { price: e.target.value })} />
+              <button type="button" className="btn sm line" aria-label="Remove size" onClick={() => setSizes((list) => list.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          {sizes.length < 6 && (
+            <button type="button" className="btn sm" onClick={() => setSizes((list) => [...list, { name: "", price: "" }])}>+ Add a size</button>
+          )}
+        </div>
+        <div className="hint sm">If you add sizes, the cashier picks one each time this item is tapped, and the size's price is charged instead of the price above.</div>
         <label className="field" htmlFor="fCat">
           Category
           <input type="text" id="fCat" maxLength={20} list="catList" placeholder="Fries" value={category} onChange={(e) => setCategory(e.target.value)} />
