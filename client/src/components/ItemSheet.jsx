@@ -6,6 +6,7 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   const [price, setPrice] = useState(item ? String(item.price) : "");
   const [category, setCategory] = useState(item?.category ?? "");
   const [flavors, setFlavors] = useState((item?.flavors || []).join(", "));
+  const [addons, setAddons] = useState((item?.addons || []).map((a) => ({ name: a.name, price: String(a.price) })));
   const [stock, setStock] = useState(item?.stock == null ? "" : String(item.stock));
   const [active, setActive] = useState(item ? item.active !== false : true);
   const [busy, setBusy] = useState(false);
@@ -27,9 +28,11 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
   };
 
   const save = () => {
-    const body = { name, price, category, flavors, active, stock: stock.trim() === "" ? null : stock };
+    const body = { name, price, category, flavors, addons: addons.filter((a) => a.name.trim()), active, stock: stock.trim() === "" ? null : stock };
     run(() => (item ? api.updateItem(item.id, body) : api.createItem(body)), "Saved");
   };
+
+  const setAddon = (i, patch) => setAddons((list) => list.map((a, j) => (j === i ? { ...a, ...patch } : a)));
 
   const remove = () => {
     if (!armDelete) return setArmDelete(true); // first tap arms, second tap deletes
@@ -61,6 +64,20 @@ export default function ItemSheet({ item, menu, onClose, onToast }) {
           <input type="text" id="fFlavors" maxLength={400} placeholder="Cheese, BBQ, Sour Cream" value={flavors} onChange={(e) => setFlavors(e.target.value)} />
         </label>
         <div className="hint sm">If you list flavors, the cashier is asked to pick one each time this item is tapped. All flavors share the same price and stock.</div>
+        <div className="field">
+          Add-ons (optional extras with their own price)
+          {addons.map((a, i) => (
+            <div className="addon" key={i}>
+              <input type="text" aria-label="Add-on name" maxLength={30} placeholder="Extra Cheese" value={a.name} onChange={(e) => setAddon(i, { name: e.target.value })} />
+              <input type="number" aria-label="Add-on price" inputMode="decimal" min="0" step="any" placeholder="₱10" value={a.price} onChange={(e) => setAddon(i, { price: e.target.value })} />
+              <button type="button" className="btn sm line" aria-label="Remove add-on" onClick={() => setAddons((list) => list.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          {addons.length < 10 && (
+            <button type="button" className="btn sm" onClick={() => setAddons((list) => [...list, { name: "", price: "" }])}>+ Add an add-on</button>
+          )}
+        </div>
+        <div className="hint sm">The cashier can tick any add-ons when this item is tapped. Each one adds its price to the item.</div>
         <label className="field" htmlFor="fStock">
           Stock on hand (blank = don't track)
           <input type="number" id="fStock" inputMode="numeric" min="0" step="1" placeholder="Not tracked" value={stock} onChange={(e) => setStock(e.target.value)} />

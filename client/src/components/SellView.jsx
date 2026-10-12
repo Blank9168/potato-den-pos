@@ -28,7 +28,9 @@ export default function SellView({ loaded, menu, cart, onAdd }) {
           return (
             <button key={item.id} className={"tile" + (qty ? " on" : "")} disabled={soldOut} onClick={() => onAdd(item.id)}>
               {qty > 0 && <span className="q">{qty}</span>}
-              <span className="nm">{item.name}{item.flavors?.length > 0 && <small className="fl">{item.flavors.length} flavors</small>}</span>
+              <span className="nm">{item.name}{(item.flavors?.length > 0 || item.addons?.length > 0) && (
+                <small className="fl">{[item.flavors?.length > 0 && `${item.flavors.length} flavors`, item.addons?.length > 0 && "add-ons"].filter(Boolean).join(" · ")}</small>
+              )}</span>
               <span>
                 <span className="pr">{peso(C(item.price))}</span>
                 <br />

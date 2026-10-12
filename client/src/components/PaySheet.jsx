@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.js";
-import { C, lineName, peso } from "../utils.js";
+import { C, addonNames, baseName, lineName, peso } from "../utils.js";
 
 const BILLS = [50, 100, 200, 500, 1000];
 
@@ -42,7 +42,7 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
     setBusy(true);
     try {
       const order = await api.createOrder({
-        items: lines.map((l) => ({ id: l.id, flavor: l.flavor, qty: l.qty })),
+        items: lines.map((l) => ({ id: l.id, flavor: l.flavor, addons: l.addons.map((a) => a.name), qty: l.qty })),
         pay, tendered: pay === "cash" ? tendered : "", ref, discountPct,
       });
       setDone(order);
@@ -66,7 +66,7 @@ export default function PaySheet({ lines, total: subtotal, onQty, onSold, onClos
         <div className="lines">
           {lines.map((l) => (
             <div className="ln" key={l.key}>
-              <div className="n">{lineName(l)}<small>{peso(C(l.price))} each</small></div>
+              <div className="n">{baseName(l)}<small>{l.addons.length > 0 && `+ ${addonNames(l)} · `}{peso(C(l.price))} each</small></div>
               <div className="step">
                 <button aria-label="Remove one" onClick={() => onQty(l.key, -1)}>−</button>
                 <span>{l.qty}</span>

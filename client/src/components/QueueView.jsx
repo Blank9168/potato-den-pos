@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { C, lineName, peso, timeOf } from "../utils.js";
+import { C, addonNames, lineName, peso, timeOf } from "../utils.js";
 
 // An order is waiting if it was paid, not voided, and not yet served.
 // Orders recorded before the queue existed have no status and count as served.
@@ -90,7 +90,7 @@ export default function QueueView({ loaded, orders, me, onToast }) {
               </div>
               <ul className="titems">
                 {o.items.map((l) => (
-                  <li key={l.id + (l.flavor || "")}><b>{l.qty}×</b> {l.name}{l.flavor && <span className="flv"> · {l.flavor}</span>}</li>
+                  <li key={lineName(l)}><b>{l.qty}×</b> {l.name}{l.flavor && <span className="flv"> · {l.flavor}</span>}{l.addons?.length > 0 && <small className="adds">+ {addonNames(l)}</small>}</li>
                 ))}
               </ul>
               <div className="hint sm">{timeOf(o.ts)}{o.cashier ? ` · ${o.cashier}` : ""}</div>

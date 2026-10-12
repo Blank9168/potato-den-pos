@@ -7,7 +7,7 @@ import SalesView from "./components/SalesView.jsx";
 import MenuView from "./components/MenuView.jsx";
 import PaySheet from "./components/PaySheet.jsx";
 import ItemSheet from "./components/ItemSheet.jsx";
-import FlavorSheet from "./components/FlavorSheet.jsx";
+import OptionsSheet from "./components/OptionsSheet.jsx";
 import UsersView from "./components/UsersView.jsx";
 import AccountSheet from "./components/AccountSheet.jsx";
 
@@ -18,8 +18,8 @@ export default function Register({ user, onLogout, onSessionLost }) {
   const [tab, setTab] = useState("sell");
   const [data, setData] = useState({ loaded: false, today: "", menu: [], orders: [], queue: [] });
   const [online, setOnline] = useState(true);
-  const [cart, setCart] = useState({}); // cart key (item id, or "id|flavor") -> quantity
-  const [sheet, setSheet] = useState(null); // { type: "pay" } | { type: "item", item } | { type: "flavor", item }
+  const [cart, setCart] = useState({}); // cart key (item + flavor + add-ons, see cartKey) -> quantity
+  const [sheet, setSheet] = useState(null); // { type: "pay" } | { type: "item", item } | { type: "options", item }
   const [toast, setToast] = useState("");
 
   const refresh = useCallback(async () => {
@@ -51,16 +51,19 @@ export default function Register({ user, onLogout, onSessionLost }) {
   }, [toast]);
 
   // Cart lines always use the current menu, so a price edit or deleted item is reflected right away.
-  // An entry is dropped if its flavor was removed from the item, or flavors were added to an item that had none.
+  // An entry is dropped if its flavor or an add-on was removed from the item, or flavors were added to an item that had none.
   const lines = useMemo(() => {
     const out = [];
     data.menu.forEach((item, pos) => {
       const flavors = item.flavors || [];
       for (const [key, qty] of Object.entries(cart)) {
-        const [id, flavor] = splitKey(key);
+        const [id, flavor, names] = splitKey(key);
         if (id !== item.id || !(qty > 0)) continue;
         if (flavors.length ? !flavors.includes(flavor) : flavor) continue;
-        out.push({ ...item, key, flavor, qty, pos, fpos: flavors.indexOf(flavor) });
+        const addons = (item.addons || []).filter((a) => names.includes(a.name));
+        if (addons.length !== names.length) continue;
+        const price = (C(item.price) + addons.reduce((sum, a) => sum + C(a.price), 0)) / 100; // one unit with its add-ons
+        out.push({ ...item, key, flavor, addons, price, qty, pos, fpos: flavors.indexOf(flavor) });
       }
     });
     return out.sort((a, b) => a.pos - b.pos || a.fpos - b.fpos);
@@ -87,11 +90,11 @@ export default function Register({ user, onLogout, onSessionLost }) {
     });
   };
 
-  // Tapping a tile adds one, unless the item has flavors: then ask which one first.
+  // Tapping a tile adds one, unless the item has flavors or add-ons: then ask for those first.
   const addItem = (id) => {
     const item = data.menu.find((m) => m.id === id);
-    if (item?.flavors?.length) setSheet({ type: "flavor", item });
-    else changeQty(id, 1);
+    if (item?.flavors?.length || item?.addons?.length) setSheet({ type: "options", item });
+    else changeQty(cartKey(id), 1);
   };
 
   const closeSheet = () => setSheet(null);
@@ -145,8 +148,8 @@ export default function Register({ user, onLogout, onSessionLost }) {
       {sheet?.type === "pay" && (
         <PaySheet lines={lines} total={total} onQty={changeQty} onSold={() => setCart({})} onClose={closeSheet} onToast={setToast} />
       )}
-      {sheet?.type === "flavor" && (
-        <FlavorSheet item={sheet.item} onPick={(flavor) => { changeQty(cartKey(sheet.item.id, flavor), 1); closeSheet(); }} onClose={closeSheet} />
+      {sheet?.type === "options" && (
+        <OptionsSheet item={sheet.item} onAdd={(flavor, addons) => { changeQty(cartKey(sheet.item.id, flavor, addons), 1); closeSheet(); }} onClose={closeSheet} />
       )}
       {sheet?.type === "item" && (
         <ItemSheet item={sheet.item} menu={data.menu} onClose={closeSheet} onToast={setToast} />

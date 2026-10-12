@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
-import { C, lineName, niceDay, peso, timeOf } from "../utils.js";
+import { C, baseName, lineName, niceDay, peso, timeOf } from "../utils.js";
 import { isPending } from "./QueueView.jsx";
 
 function summarize(orders) {
@@ -13,10 +13,15 @@ function summarize(orders) {
     s.discounts += C(o.discount);
     if (o.pay === "gcash") s.gcash += t; else s.cash += t;
     for (const l of o.items) {
-      const name = lineName(l); // each flavor gets its own row
-      s.items[name] ??= { qty: 0, amt: 0 };
-      s.items[name].qty += l.qty;
-      s.items[name].amt += C(l.price) * l.qty;
+      // Each flavor gets its own row at the item's base price; each add-on gets a row of its own ("+ Extra Cheese").
+      const addons = l.addons || [];
+      const add = (name, amt) => {
+        s.items[name] ??= { qty: 0, amt: 0 };
+        s.items[name].qty += l.qty;
+        s.items[name].amt += amt * l.qty;
+      };
+      add(baseName(l), C(l.price) - addons.reduce((sum, a) => sum + C(a.price), 0));
+      for (const a of addons) add(`+ ${a.name}`, C(a.price));
     }
   }
   return s;

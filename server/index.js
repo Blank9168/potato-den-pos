@@ -57,10 +57,22 @@ function readItem(body) {
     if (flavor && !flavors.some((f) => f.toLowerCase() === flavor.toLowerCase())) flavors.push(flavor);
   }
   if (flavors.length > 20) return { error: "Keep it to 20 flavors or fewer per item." };
+  // Add-ons are optional extras with their own price, e.g. { name: "Extra Cheese", price: 10 }. Blank price = free.
+  const addons = [];
+  for (const raw of Array.isArray(body.addons) ? body.addons : []) {
+    const addonName = String(raw?.name ?? "").trim().replace(/\s+/g, " ").slice(0, 30);
+    if (!addonName) continue;
+    const addonPrice = raw.price === "" || raw.price == null ? 0 : Number(raw.price);
+    if (!Number.isFinite(addonPrice) || addonPrice < 0) return { error: `Enter a price for the add-on "${addonName}".` };
+    if (addons.some((a) => a.name.toLowerCase() === addonName.toLowerCase())) continue;
+    addons.push({ name: addonName, price: Math.round(addonPrice * 100) / 100 });
+  }
+  if (addons.length > 10) return { error: "Keep it to 10 add-ons or fewer per item." };
   return {
     item: {
       name,
       flavors,
+      addons,
       price: Math.round(price * 100) / 100,
       category: String(body.category ?? "").trim().slice(0, 20) || "Other",
       active: body.active !== false,
@@ -233,8 +245,20 @@ app.post("/api/orders", (req, res) => {
       flavor = String(line.flavor ?? "").trim();
       if (!item.flavors.includes(flavor)) return fail(res, 409, `Pick a flavor for ${item.name}.`);
     }
-    const key = `${item.id}|${flavor}`;
-    const merged = lineByKey.get(key) || { id: item.id, name: item.name, ...(flavor ? { flavor } : {}), price: item.price, qty: 0 };
+    // Add-ons: only ones this item offers, kept in menu order. Their prices are added to the line's unit price.
+    const wanted = Array.isArray(line.addons) ? line.addons.map((a) => String(a)) : [];
+    const offered = item.addons || [];
+    if (wanted.some((a) => !offered.some((x) => x.name === a))) {
+      return fail(res, 409, `An add-on for ${item.name} is no longer on the menu. Start the order again.`);
+    }
+    const addons = offered.filter((x) => wanted.includes(x.name)).map((x) => ({ name: x.name, price: x.price }));
+    const unitC = cents(item.price) + addons.reduce((sum, a) => sum + cents(a.price), 0);
+    const key = JSON.stringify([item.id, flavor, addons.map((a) => a.name)]);
+    const merged = lineByKey.get(key) || {
+      id: item.id, name: item.name, ...(flavor ? { flavor } : {}),
+      ...(addons.length ? { addons, basePrice: item.price } : {}),
+      price: unitC / 100, qty: 0, // price = one unit including its add-ons
+    };
     merged.qty += qty;
     lineByKey.set(key, merged);
     qtyById.set(item.id, (qtyById.get(item.id) || 0) + qty);
@@ -320,10 +344,10 @@ app.get("/api/export", (req, res) => {
   const day = validDay(req.query.day);
   if (!day) return fail(res, 400, "Pick a valid day.");
   const q = (v) => { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Flavor", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
+  const rows = [["Order no", "Date", "Time", "Cashier", "Item", "Flavor", "Add-ons", "Qty", "Unit price", "Line total", "Order subtotal", "Discount %", "Discount", "Order total", "Payment", "GCash ref", "Cash received", "Change", "Status", "Served at"]];
   for (const o of visibleOrders(req.user, day).sort((a, b) => a.ts - b.ts)) {
     for (const l of o.items) {
-      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.flavor || "", l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
+      rows.push([o.no, o.day, timeOf(o.ts), o.cashier, l.name, l.flavor || "", (l.addons || []).map((a) => a.name).join("; "), l.qty, l.price, (cents(l.price) * l.qty) / 100, o.subtotal ?? o.total, o.discountPct || 0, o.discount || 0, o.total,
         o.pay === "gcash" ? "GCash" : "Cash", o.ref, o.tendered, o.change, o.voided ? "Void" : "Paid", o.doneAt ? timeOf(o.doneAt) : ""]);
     }
   }

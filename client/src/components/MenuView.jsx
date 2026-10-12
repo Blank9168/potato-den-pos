@@ -32,6 +32,7 @@ export default function MenuView({ loaded, menu, onEdit }) {
                     {item.active === false && <> <span className="pill">Hidden</span></>}
                     {item.sample && <> <span className="pill">Sample</span></>}
                     {item.flavors?.length > 0 && <><br /><small className="hint sm">{item.flavors.join(", ")}</small></>}
+                    {item.addons?.length > 0 && <><br /><small className="hint sm">Add-ons: {item.addons.map((a) => `${a.name} +${peso(C(a.price))}`).join(", ")}</small></>}
                   </td>
                   <td>{item.category || "Other"}</td>
                   <td className="num">{peso(C(item.price))}</td>

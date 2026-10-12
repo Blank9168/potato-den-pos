@@ -158,5 +158,11 @@ input[type=password]{background:var(--surface);border:1.5px solid var(--line);bo
 .tile .fl{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-top:2px}
 .flavors{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .flavors .btn{padding:18px 12px;font-size:1.05rem;background:var(--surface);border:1.5px solid var(--line);overflow-wrap:anywhere}
+.flavors .btn[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.flavors .btn small{display:block;font-weight:600;opacity:.75;font-size:.85rem}
 .flv{font-weight:700}
+.adds{display:block;color:var(--muted);font-weight:600;font-size:.9rem;padding-left:1.6em}
+.addon{display:flex;gap:8px;align-items:center}
+.addon input[type=text]{flex:1}
+.addon input[type=number]{width:96px;flex:none}
 .disc{display:flex;justify-content:space-between;color:var(--muted);font-weight:600}
